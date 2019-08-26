@@ -11,6 +11,11 @@ const r = new Response()
 app.use(static(__dirname + '/static'))
 app.use(bodyParser())
 
+app.use(async (ctx, next) => {
+  ctx.set('Access-Control-Allow-Origin', '*')
+  await next()
+})
+
 router.get('/getTest', async ctx => {
   ctx.body = ctx.query
 })
@@ -20,7 +25,7 @@ router.post('/postTest', async ctx => {
 
 router.get('/getCarouselList', async ctx => {
   const sql = `select * from carousel`
-  let result = await query(sql)
+  const result = await query(sql)
   ctx.body = r.successData(result)
 })
 
@@ -40,6 +45,7 @@ router.get('/query', async ctx => {
     sex,
     classify,
     page = 1,
+    pageSize = 12,
     minPrice = 0,
     maxPrice = 99999,
     order = 'default',
@@ -47,21 +53,21 @@ router.get('/query', async ctx => {
   } = ctx.query
   let itemSql = ''
   let countSql = ''
-  if (Valid(sex).in(['1', '2'])) {
+  if (!Valid(sex).in(['1', '2'])) {
     if (!Valid(classify).in(['1', '2', '3'])) {
-      itemSql = `select * from goods where goodsprice between ${minPrice} and ${maxPrice} `
-      countSql = `select count(*) as sum from goods goodsprice between ${minPrice} and ${maxPrice} `
+      itemSql = `select * from goods where (goodsprice between ${minPrice} and ${maxPrice}) `
+      countSql = `select count(*) as total from goods where (goodsprice between ${minPrice} and ${maxPrice}) `
     } else {
-      itemSqL = `select * from goods where goodsprice between ${minPrice} and ${maxPrice} and classify = ${classify} `
-      countSql = `select count(*) as sum from goods where goodsprice between ${minPrice} and ${maxPrice} and classify = ${classify} `
+      itemSql = `select * from goods where (goodsprice between ${minPrice} and ${maxPrice}) and classify = ${classify} `
+      countSql = `select count(*) as total from goods where (goodsprice between ${minPrice} and ${maxPrice}) and classify = ${classify} `
     }
   } else {
     if (!Valid(classify).in(['1', '2', '3'])) {
-      itemSql = `select * from goods where goodsprice between ${minPrice} and ${maxPrice} and sex = ${sex} `
-      countSql = `select count(*) as sum from goods where goodsprice between ${minPrice} and ${maxPrice} and sex = ${sex} `
+      itemSql = `select * from goods where (goodsprice between ${minPrice} and ${maxPrice}) and sex = ${sex} `
+      countSql = `select count(*) as total from goods where (goodsprice between ${minPrice} and ${maxPrice}) and sex = ${sex} `
     } else {
-      itemSqL = `select * from goods where goodsprice between ${minPrice} and ${maxPrice} and sex = ${sex} and classify = ${classify} `
-      countSql = `select count(*) as sum from goods where goodsprice between ${minPrice} and ${maxPrice} and sex = ${sex} and classify = ${classify} `
+      itemSql = `select * from goods where (goodsprice between ${minPrice} and ${maxPrice}) and sex = ${sex} and classify = ${classify} `
+      countSql = `select count(*) as total from goods where (goodsprice between ${minPrice} and ${maxPrice}) and sex = ${sex} and classify = ${classify} `
     }
   }
   if (word) {
@@ -73,7 +79,25 @@ router.get('/query', async ctx => {
   } else if (order == 'high') {
     itemSql += ` order by goodsprice desc `
   }
-  itemSql += ` limit ${page},12`
+  itemSql += ` limit ${(page - 1) * pageSize},${pageSize};`
+  const items = await query(itemSql)
+  const total = await query(countSql)
+  ctx.body = r.successPage(items, page, pageSize, total[0].total)
+})
+
+router.get('/detail', async ctx => {
+  const id = ctx.query.id
+  if (!id) {
+    ctx.body = r.parameterError()
+  } else {
+    const sql = `select * from goods where goodsid = ?`
+    const detail = await query(sql, id)
+    if (detail) {
+      ctx.body = r.successData(detail[0])
+    } else {
+      ctx.body = r.error(302, '没有数据')
+    }
+  }
 })
 
 app.use(router.routes())

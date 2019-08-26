@@ -43,7 +43,7 @@ class Response {
       message: '参数错误'
     }
   }
-  err(code = 302, message = '未知错误') {
+  error(code = 302, message = '未知错误') {
     return {
       code,
       message
