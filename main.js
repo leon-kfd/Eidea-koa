@@ -92,8 +92,32 @@ router.get('/detail', async ctx => {
   } else {
     const sql = `select * from goods where goodsid = ?`
     const detail = await query(sql, id)
-    if (detail) {
+    if (detail.length > 0) {
       ctx.body = r.successData(detail[0])
+    } else {
+      ctx.body = r.error(302, '没有数据')
+    }
+  }
+})
+
+router.get('/recommend', async ctx => {
+  const id = ctx.query.id
+  if (!id) {
+    ctx.body = r.parameterError()
+  } else {
+    const sql = `select * from goods where goodsid = ?`
+    const info = await query(sql, id)
+    ctx.body = info
+    if (info.length > 0) {
+      const sex = info[0].sex
+      const classify = info[0].classify
+      const recommendSql = `select * from goods where sex = ? and classify = ? and goodsid <> ?`
+      let recommendList = await query(recommendSql, [sex, classify, id])
+      if (recommendList.length > 4) {
+        recommendList.sort(() => Math.random() - 0.5)
+        recommendList = recommendList.slice(0, 4)
+      }
+      ctx.body = r.successData(recommendList)
     } else {
       ctx.body = r.error(302, '没有数据')
     }
