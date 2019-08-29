@@ -1,6 +1,7 @@
 const Koa = require('koa')
 const router = require('koa-router')()
 const static = require('koa-static')
+const session = require('koa-session')
 const bodyParser = require('koa-bodyparser')
 const { query, transactionQuery } = require('./tools/async-mysql')
 const Valid = require('./tools/validation')
@@ -8,12 +9,38 @@ const Response = require('./tools/response')
 const app = new Koa()
 const r = new Response()
 
+// 静态资源服务器
 app.use(static(__dirname + '/static'))
+
+// 处理POST请求的JSON格式
 app.use(bodyParser())
 
+// koa-session
+app.keys = ['eidea']
+const CONFIG = {
+  key: 'koa:sess',
+  maxAge: 86400000,
+  overwrite: true,
+  httpOnly: true,
+  signed: true,
+  rolling: false,
+  renew: false
+}
+app.use(session(CONFIG, app))
+
+// 关闭跨域与OPTIONS请求
 app.use(async (ctx, next) => {
   ctx.set('Access-Control-Allow-Origin', '*')
-  await next()
+  ctx.set(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Content-Length, Authorization, Accept, X-Requested-With , yourHeaderFeild'
+  )
+  ctx.set('Access-Control-Allow-Methods', 'PUT, POST, GET, DELETE, OPTIONS')
+  if (ctx.method == 'OPTIONS') {
+    ctx.body = 200
+  } else {
+    await next()
+  }
 })
 
 router.get('/getTest', async ctx => {
@@ -121,6 +148,35 @@ router.get('/recommend', async ctx => {
     } else {
       ctx.body = r.error(302, '没有数据')
     }
+  }
+})
+
+router.post('/register', async ctx => {
+  const { username, email, password } = ctx.request.body
+  const checkSql = `select * from usertable where e_username = ?`
+  const check = await query(checkSql, username)
+  if (check.length > 0) {
+    ctx.body = r.error(303, '用户名已存在')
+  } else {
+    const insertSql = `insert into usertable (e_username, e_password, e_email) values (?, ?, ?)`
+    const insert = await query(insertSql, [username, password, email])
+    if (insert) {
+      ctx.body = r.success()
+    } else {
+      ctx.body = r.error()
+    }
+  }
+})
+
+router.post('/login', async ctx => {
+  const { username, password } = ctx.request.body
+  const checkSql = `select * from usertable where e_username = ? and e_password = ?`
+  const check = await query(checkSql, [username, password])
+  if (check.length > 0) {
+    ctx.session.username = username
+    ctx.body = r.success()
+  } else {
+    ctx.body = r.error(301, '账号密码错误')
   }
 })
 
