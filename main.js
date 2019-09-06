@@ -172,12 +172,22 @@ router.post('/login', async ctx => {
   const { username, password } = ctx.request.body
   const checkSql = `select * from usertable where e_username = ? and e_password = ?`
   const check = await query(checkSql, [username, password])
+  console.log(check)
   if (check.length > 0) {
     ctx.session.username = username
     ctx.body = r.success()
   } else {
     ctx.body = r.error(301, '账号密码错误')
   }
+})
+
+router.get('/checkLogin', async ctx => {
+  ctx.body = r.successData(ctx.session.username)
+})
+
+router.get('/logout', async ctx => {
+  ctx.session.username = ''
+  ctx.body = r.success()
 })
 
 app.use(router.routes())
