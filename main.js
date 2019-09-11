@@ -172,7 +172,6 @@ router.post('/login', async ctx => {
   const { username, password } = ctx.request.body
   const checkSql = `select * from usertable where e_username = ? and e_password = ?`
   const check = await query(checkSql, [username, password])
-  console.log(check)
   if (check.length > 0) {
     ctx.session.username = username
     ctx.body = r.success()
@@ -182,12 +181,87 @@ router.post('/login', async ctx => {
 })
 
 router.get('/checkLogin', async ctx => {
-  ctx.body = r.successData(ctx.session.username)
+  ctx.body = r.successData(ctx.session.username || '')
 })
 
 router.get('/logout', async ctx => {
   ctx.session.username = ''
   ctx.body = r.success()
+})
+
+router.get('/getCartGoodsList', async ctx => {
+  const username = ctx.session.username
+  if (username) {
+    const sql =
+      'select * from shoppingcart,goods where shoppingcart.goodsid=goods.goodsid and username = ?'
+    const result = await query(sql, username)
+    ctx.body = r.successData(result)
+  } else {
+    ctx.body = r.loginError()
+  }
+})
+
+router.post('/setCartGoods', async ctx => {
+  const { goodsid, quantity } = ctx.request.body
+  const username = ctx.session.username
+  if (!username) {
+    ctx.body = r.loginError()
+  } else if (!goodsid || !quantity) {
+    ctx.body = r.parameterError()
+  } else {
+    const sql =
+      'update shoppingcart set quantity= ? where username = ? and goodsid = ?'
+    const result = await query(sql, [quantity, username, goodsid])
+    if (result) {
+      ctx.body = r.success()
+    } else {
+      ctx.body = r.error()
+    }
+  }
+})
+
+router.post('/removeCartGoods', async ctx => {
+  const { goodsid } = ctx.request.body
+  const username = ctx.session.username
+  if (!username) {
+    ctx.body = r.loginError()
+  } else if (!goodsid) {
+    ctx.body = r.parameterError()
+  } else {
+    const sql = 'delete from shoppingcart where username = ? and goodsid = ?'
+    const result = await query(sql, [username, goodsid])
+    if (result) {
+      ctx.body = r.success()
+    } else {
+      ctx.body = r.error()
+    }
+  }
+})
+
+router.post('/addToCart', async ctx => {
+  const { goodsid } = ctx.request.body
+  const username = ctx.session.username
+  if (!username) {
+    ctx.body = r.loginError()
+  } else if (!goodsid) {
+    ctx.body = r.parameterError()
+  } else {
+    const checkSql =
+      'select * from shoppingcart where username = ? and goodsid = ?'
+    const checkResult = await query(checkSql, [username, goodsid])
+    if (checkResult.length > 0) {
+      ctx.body = r.error(303, '商品已存在购物车中')
+    } else {
+      const sql =
+        'insert into shoppingcart(username,goodsid,quantity) values( ? , ? , 1)'
+      const result = await query(sql, [username, goodsid])
+      if (result) {
+        ctx.body = r.success()
+      } else {
+        ctx.body = r.error()
+      }
+    }
+  }
 })
 
 app.use(router.routes())
