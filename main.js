@@ -50,12 +50,14 @@ router.post('/postTest', async ctx => {
   ctx.body = ctx.request.body
 })
 
+// 获取轮播图列表
 router.get('/getCarouselList', async ctx => {
   const sql = `select * from carousel`
   const result = await query(sql)
   ctx.body = r.successData(result)
 })
 
+// 获取首页商品
 router.get('/getHomeGoods', async ctx => {
   const manSql = `select * from goods where sex=1 limit 0,4`
   const ladySql = `select * from goods where sex=2 limit 0,4`
@@ -67,6 +69,7 @@ router.get('/getHomeGoods', async ctx => {
   })
 })
 
+// 搜索商品
 router.get('/query', async ctx => {
   const {
     sex,
@@ -112,6 +115,7 @@ router.get('/query', async ctx => {
   ctx.body = r.successPage(items, page, pageSize, total[0].total)
 })
 
+// 获取商品详情
 router.get('/detail', async ctx => {
   const id = ctx.query.id
   if (!id) {
@@ -127,6 +131,7 @@ router.get('/detail', async ctx => {
   }
 })
 
+// 获取猜你喜欢
 router.get('/recommend', async ctx => {
   const id = ctx.query.id
   if (!id) {
@@ -151,6 +156,7 @@ router.get('/recommend', async ctx => {
   }
 })
 
+// 注册
 router.post('/register', async ctx => {
   const { username, email, password } = ctx.request.body
   const checkSql = `select * from usertable where e_username = ?`
@@ -168,6 +174,7 @@ router.post('/register', async ctx => {
   }
 })
 
+// 登录
 router.post('/login', async ctx => {
   const { username, password } = ctx.request.body
   const checkSql = `select * from usertable where e_username = ? and e_password = ?`
@@ -180,15 +187,18 @@ router.post('/login', async ctx => {
   }
 })
 
+// 检查登录状态
 router.get('/checkLogin', async ctx => {
   ctx.body = r.successData(ctx.session.username || '')
 })
 
+// 注销
 router.get('/logout', async ctx => {
   ctx.session.username = ''
   ctx.body = r.success()
 })
 
+// 获取购物车列表
 router.get('/getCartGoodsList', async ctx => {
   const username = ctx.session.username
   if (username) {
@@ -201,6 +211,7 @@ router.get('/getCartGoodsList', async ctx => {
   }
 })
 
+// 更改购物车商品数量
 router.post('/setCartGoods', async ctx => {
   const { goodsid, quantity } = ctx.request.body
   const username = ctx.session.username
@@ -220,6 +231,7 @@ router.post('/setCartGoods', async ctx => {
   }
 })
 
+// 移出购物车商品
 router.post('/removeCartGoods', async ctx => {
   const { goodsid } = ctx.request.body
   const username = ctx.session.username
@@ -238,6 +250,7 @@ router.post('/removeCartGoods', async ctx => {
   }
 })
 
+// 添加到购物车
 router.post('/addToCart', async ctx => {
   const { goodsid } = ctx.request.body
   const username = ctx.session.username
@@ -261,6 +274,148 @@ router.post('/addToCart', async ctx => {
         ctx.body = r.error()
       }
     }
+  }
+})
+
+// 获取订单列表
+router.get('/getSettlementGoodsList', async ctx => {
+  const username = ctx.session.username
+  if (!username) {
+    ctx.body = r.loginError()
+  } else {
+    const sql = `select * from shoppingcart,goods where shoppingcart.goodsid=goods.goodsid and username = ?`
+    const result = await query(sql, username)
+    if (result) {
+      ctx.body = r.successData(result)
+    } else {
+      ctx.body = r.error()
+    }
+  }
+})
+
+// 设置关注/收藏
+router.post('/updateCollection', async ctx => {
+  const { goodsid } = ctx.request.body
+  const username = ctx.session.username
+  if (!username) {
+    ctx.body = r.loginError()
+  } else if (!goodsid) {
+    ctx.body = r.parameterError()
+  } else {
+    const checkSql =
+      'select * from collection where username = ? and goodsid = ?'
+    const checkResult = await query(checkSql, [username, goodsid])
+    if (checkResult.length > 0) {
+      const deleteSql = `delete from collection where username = ? and goodsid = ?`
+      const deleteResult = await query(deleteSql, [username, goodsid])
+      if (deleteResult) {
+        ctx.body = r.success()
+      } else {
+        ctx.body = r.error()
+      }
+    } else {
+      const insertSql = `insert into collection(username, goodsid) values (?, ?)`
+      const insertResult = await query(insertSql, [username, goodsid])
+      if (insertResult) {
+        ctx.body = r.success()
+      } else {
+        ctx.body = r.error()
+      }
+    }
+  }
+})
+
+// 获取商品是否被收藏
+router.get('/getCollection', async ctx => {
+  const username = ctx.session.username
+  const { id: goodsid } = ctx.query
+  if (!username) {
+    ctx.body = r.loginError()
+  } else if (!goodsid) {
+    ctx.body = r.parameterError()
+  } else {
+    const sql = `select * from collection where username = ? and goodsid = ?`
+    const result = await query(sql, [username, goodsid])
+    if (result.length > 0) {
+      ctx.body = r.successData(1)
+    } else {
+      ctx.body = r.successData(0)
+    }
+  }
+})
+
+// 获取收藏商品列表
+router.get('/getCollectionList', async ctx => {
+  const username = ctx.session.username
+  if (!username) {
+    ctx.body = r.loginError()
+  } else {
+    const sql = `select * from collection where username = ?`
+    const result = await query(sql, username)
+    if (result) {
+      ctx.body = r.successData(result)
+    } else {
+      ctx.body = r.error()
+    }
+  }
+})
+
+// 获取保存地址列表
+router.get('/getAddressList', async ctx => {
+  const username = ctx.session.username
+  if (!username) {
+    ctx.body = r.loginError()
+  } else {
+    const sql = `select * from address where username = ?`
+    const result = await query(sql, username)
+    if (result) {
+      ctx.body = r.successData(result)
+    } else {
+      ctx.body = r.error()
+    }
+  }
+})
+
+// 修改地址
+router.post('/updateAddress', async ctx => {
+  const username = ctx.session.username
+  const {
+    id,
+    addressee,
+    addresseeTel,
+    province,
+    city,
+    area,
+    addressDetail
+  } = ctx.request.body
+  const updateSql = `update address set addressee = ? ,addressee_tel = ? , province = ?, city = ?, area = ?, add_detail = ? where id = ? and username = ?`
+  const updateResult = await query(updateSql, [
+    addressee,
+    addresseeTel,
+    province,
+    city,
+    area,
+    addressDetail,
+    id,
+    username
+  ])
+  if (updateResult) {
+    ctx.body = r.success()
+  } else {
+    ctx.body = r.error()
+  }
+})
+
+// 删除地址
+router.get('/deleteAddress', async ctx => {
+  const username = ctx.session.username
+  const { id } = ctx.query
+  const deleteSql = `delete from address where id = ? and username = ?`
+  const deleteResult = await query(deleteSql, [id, username])
+  if (deleteResult) {
+    ctx.body = r.success()
+  } else {
+    ctx.body = r.error()
   }
 })
 
