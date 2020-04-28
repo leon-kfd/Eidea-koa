@@ -4,7 +4,6 @@ const static = require('koa-static')
 const session = require('koa-session')
 const bodyParser = require('koa-bodyparser')
 const { query, transactionQuery } = require('./tools/async-mysql')
-const Valid = require('./tools/validation')
 const Response = require('./tools/response')
 const app = new Koa()
 const r = new Response()
@@ -19,36 +18,26 @@ app.use(bodyParser())
 app.keys = ['eidea']
 const CONFIG = {
   key: 'koa:sess',
-  maxAge: 86400000,
-  overwrite: true,
+  maxAge: 2 * 3600 * 1000,
   httpOnly: true,
-  signed: true,
-  rolling: false,
-  renew: false
+  renew: true
 }
 app.use(session(CONFIG, app))
 
 // 关闭跨域与OPTIONS请求
-app.use(async (ctx, next) => {
-  ctx.set('Access-Control-Allow-Origin', '*')
-  ctx.set(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Content-Length, Authorization, Accept, X-Requested-With , yourHeaderFeild'
-  )
-  ctx.set('Access-Control-Allow-Methods', 'PUT, POST, GET, DELETE, OPTIONS')
-  if (ctx.method == 'OPTIONS') {
-    ctx.body = 200
-  } else {
-    await next()
-  }
-})
-
-router.get('/getTest', async ctx => {
-  ctx.body = ctx.query
-})
-router.post('/postTest', async ctx => {
-  ctx.body = ctx.request.body
-})
+// app.use(async (ctx, next) => {
+//   ctx.set('Access-Control-Allow-Origin', '*')
+//   ctx.set(
+//     'Access-Control-Allow-Headers',
+//     'Content-Type, Content-Length, Authorization, Accept, X-Requested-With , yourHeaderFeild'
+//   )
+//   ctx.set('Access-Control-Allow-Methods', 'PUT, POST, GET, DELETE, OPTIONS')
+//   if (ctx.method == 'OPTIONS') {
+//     ctx.body = 200
+//   } else {
+//     await next()
+//   }
+// })
 
 // 获取轮播图列表
 router.get('/getCarouselList', async ctx => {
@@ -81,38 +70,35 @@ router.get('/query', async ctx => {
     order = 'default',
     word
   } = ctx.query
-  let itemSql = ''
-  let countSql = ''
-  if (!Valid(sex).in(['1', '2'])) {
-    if (!Valid(classify).in(['1', '2', '3'])) {
-      itemSql = `select * from goods where (goodsprice between ${minPrice} and ${maxPrice}) `
-      countSql = `select count(*) as total from goods where (goodsprice between ${minPrice} and ${maxPrice}) `
-    } else {
-      itemSql = `select * from goods where (goodsprice between ${minPrice} and ${maxPrice}) and classify = ${classify} `
-      countSql = `select count(*) as total from goods where (goodsprice between ${minPrice} and ${maxPrice}) and classify = ${classify} `
-    }
-  } else {
-    if (!Valid(classify).in(['1', '2', '3'])) {
-      itemSql = `select * from goods where (goodsprice between ${minPrice} and ${maxPrice}) and sex = ${sex} `
-      countSql = `select count(*) as total from goods where (goodsprice between ${minPrice} and ${maxPrice}) and sex = ${sex} `
-    } else {
-      itemSql = `select * from goods where (goodsprice between ${minPrice} and ${maxPrice}) and sex = ${sex} and classify = ${classify} `
-      countSql = `select count(*) as total from goods where (goodsprice between ${minPrice} and ${maxPrice}) and sex = ${sex} and classify = ${classify} `
-    }
+  let sql = `select * from goods where goodsprice between ? and ? `
+  let paramsArr = [minPrice, maxPrice]
+  if (sex) {
+    sql += `and sex = ? `
+    paramsArr.push(sex)
+  }
+  if (classify) {
+    sql += `and classify = ? `
+    paramsArr.push(classify)
   }
   if (word) {
-    itemSql += ` and (goodsname like '%${word}%' or goodsdetail like '%${word}%') `
-    countSql += ` and (goodsname like '%${word}%' or goodsdetail like '%${word}%') `
+    sql += `and goodsname like ? or goodsdetail like ? `
+    paramsArr.push(`%${word}%`, `%${word}%`)
   }
-  if (order == 'low') {
-    itemSql += ` order by goodsprice `
-  } else if (order == 'high') {
-    itemSql += ` order by goodsprice desc `
+  const totalSql = `select count(*) as total from (${sql}) as temp `
+  const totalResult = await query(totalSql, paramsArr)
+  if (!totalResult) { ctx.body = r.error(); return }
+  if (order) {
+    if (order === 'low') {
+      sql += `order by goodsprice `
+    } else if (order === 'high') {
+      sql += `order by goodsprice desc `
+    }
   }
-  itemSql += ` limit ${(page - 1) * pageSize},${pageSize};`
-  const items = await query(itemSql)
-  const total = await query(countSql)
-  ctx.body = r.successPage(items, page, pageSize, total[0].total)
+  sql += `limit ?, ? `
+  paramsArr.push((page - 1) * pageSize, pageSize)
+  const result = await query(sql, paramsArr)
+  if (!result) { ctx.body = r.error; return }
+  ctx.body = r.successPage(result, page, pageSize, totalResult[0].total)
 })
 
 // 获取商品详情
