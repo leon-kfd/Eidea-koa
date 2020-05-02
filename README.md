@@ -11,6 +11,6 @@ Import the `eidea.sql` to the database named `eidea`
 
 ### More
 
-![http://www.kongfandong.cn/blog/design-of-electricity-system/](Article)
+[http://www.kongfandong.cn/blog/design-of-electricity-system/](Article)
 
 
